@@ -1,0 +1,1069 @@
+Created by Vaden Green, last updated by Adam Kinsman on Jan 16, 2026  9 minute read
+CDR - Query for IPS/OIO (Most common one)
+CDR - Query for a list of numbers
+CDR - Query for Global Call ID by DN
+CDR - Query by Global Call ID and Date Time
+CDR - Basic Call Count by Date Range
+CDR - Calls by Calling Party
+CDR - Calls by DN & Date
+CDR - Calls by Extension to DN with Date & Time Range
+CDR - Outbound Calls by DN & Time Period 
+CDR - Query for Campus Operators (IT.CALL) 
+CDR - Finding RightFax by Called Party
+CDR - Finding Calls by DN, Time Period and from UCCE
+CDR - Finding Call Stats for Specific Device
+Finding Remote PSTN Usage for Last 30 Days 
+Eugene
+Medford
+Salem
+Klamath Falls
+CDR - Finding Calls with Party that Disconnects
+Database Fields for Disconnect Reason
+SQL Query
+Results
+CDR - Finding all calls to and from a DN, removing PII and indicating In or outbound call.
+CUCM - Find all Registered VPN phones
+Codec Negotiation
+Public Safety - common report request and CDR request
+
+
+
+
+
+
+This has been removed from IPS/OIO query now that we have moved to DBeaver. Leaving here for now just in case.
+
+CDR - Query for IPS/OIO (Most common one)
+set
+
+search_path = callmanager;
+
+select
+    *
+from
+    cdr_basic
+where
+    datetimeorigination between 'Oct-17-2024' and 'Oct-18-2024'
+    and datetimeconnect is not null
+    and '5034185603' in(
+        callingpartynumber,
+        originalcalledpartynumber,
+        finalcalledpartynumber
+    )
+    and true
+order by
+    datetimeorigination
+
+
+
+Another method for Dbeaver:
+
+SELECT *
+
+FROM callmanager.cdr_basic
+
+WHERE datetimeorigination BETWEEN '2024-08-27 12:00' AND '2024-08-28 15:00'and datetimeconnect is not null
+
+AND (callingpartynumber = '5034181801'
+
+AND originalcalledpartynumber = '5034181801' or finalcalledpartynumber = '5034181801')
+
+This is the report output:
+
+
+
+
+
+CDR - Query for a list of numbers
+select
+    *
+from
+    cdr_basic cb
+where
+    datetimeorigination between 'Mar-14-2023' and 'Apr-18-2024'
+    and datetimeconnect is not null
+    and
+    (
+    finalcalledpartynumber
+    in ('5034949732', '5034949034', '5034949732')
+    or
+    originalcalledpartynumber
+    in ('5034949732', '5034949034', '5034949732')
+    or 
+    callingpartynumber
+    in ('5034949732', '5034949034', '5034949732')
+    )
+
+Another method for Dbeaver:
+
+report generated for multiple numbers
+
+select *
+
+from callmanager.cdr_basic
+
+where datetimeorigination between 'Mar-14-2024' and 'Apr-18-2024'
+
+and datetimeconnect is not null
+
+and
+
+( finalcalledpartynumber in ('5034949890', '5034949030', '5034185464')
+
+or
+
+originalcalledpartynumber in ('5034949890', '5034949030', '5034185464')
+
+or
+
+callingpartynumber in ('5034949890', '5034949030', '5034185464')
+
+)
+
+This is the report output:
+
+
+
+Here is a report for multiple numbers with specific time window and date:
+
+select *
+
+from callmanager.cdr_basic
+
+where datetimeorigination between 'Aug-23-2024 12:00' and 'Aug-23-2024 1300'
+
+and
+
+( finalcalledpartynumber in ('5034943151', '5034184433')
+
+or
+
+originalcalledpartynumber in ('5034943151', '5034184433')
+
+or
+
+callingpartynumber in ('5034943151', '5034184433')
+
+)
+
+
+
+CDR - Query for Global Call ID by DN
+
+SELECT
+originalcalledpartynumber,callingpartynumber,finalcalledpartynumber,globalcallid_callid,datetimeorigination
+FROM cdr
+WHERE 
+'5034944251' in (callingpartynumber) AND
+datetimeorigination BETWEEN 'Oct-29-2024 07:30:00' AND 'Oct-29-2024 16:00:00' and
+true
+
+
+
+CDR - Query by Global Call ID and Date Time
+--Finding calls by Global Call ID, need to get this from CDR data for a specific call.
+
+SELECT
+*
+FROM cdr
+WHERE
+'3103540' in (globalcallid_callid) AND
+datetimeorigination BETWEEN 'Aug-6-2019 07:30:01' AND 'Aug-6-2019 07:33:00' and
+true
+
+
+
+CDR - Basic Call Count by Date Range
+-- Generates a report of the number of completed calls and the total duration of calls to a given list of DNs. There are a few considerations:
+-- You can add as many directory numbers to the top of the SQL query
+-- The start and end date must be set in TWO places towards the bottom.
+-- This counts call legs and not calls. If a call has 59,000 legs, then it MAY show up as 59,000 calls.
+-- I will not swear to the absolute accuracy of the report. There are probably odd calls flows that could cause legs to be missed or counted more than once
+-- Minor modifications COULD be made to count devices instead of directory numbers, which may be of greater use
+
+WITH directory_number (dn) AS (VALUES
+('5034944251'),('5034944256')
+)
+SELECT
+directory_number.DN,
+COALESCE(Activity.calls,0) AS calls,
+COALESCE(Activity.duration,'00:00:00'::interval) duration
+FROM directory_number
+LEFT JOIN
+(
+-- roll up the list of DNs and durations
+SELECT
+ActivitySummery.DN,
+COUNT(ActivitySummery.DN) AS calls,
+SUM(ActivitySummery.duration) AS duration
+FROM
+(
+-- generate a list of DNs and durations that match the critera
+SELECT * FROM
+(
+(
+-- generate a list of all calls where the calling party number matches
+SELECT
+callingPartyNumber AS DN,
+duration
+FROM
+callmanager.cdr
+WHERE
+dateTimeOrigination BETWEEN '2020-Mar-01' AND '2020-Mar-31' AND
+callingPartyNumber IN (SELECT dn from directory_number) AND
+duration > '00:00:00'::interval
+)
+UNION ALL
+(
+-- generate a list of all calls where the final called party number matches
+SELECT
+finalCalledPartyNumber AS DN,
+duration
+FROM
+callmanager.cdr
+WHERE
+dateTimeOrigination BETWEEN '2020-Mar-01' AND '2020-Mar-31' AND
+finalCalledPartyNumber IN (SELECT dn from directory_number) AND
+duration > '00:00:00'::interval
+)
+) AS ActivtyDetail
+) AS ActivitySummery
+GROUP BY ActivitySummery.DN
+) AS Activity ON (directory_number.DN = Activity.DN)
+
+ORDER BY DN
+
+
+
+CDR - Calls by Calling Party
+SELECT
+*
+FROM cdr_basic
+WHERE
+'5038910996' IN (callingpartynumber) AND
+datetimeorigination between 'Mar-01-2020' and 'Mar-31-2020' AND
+true
+
+
+
+CDR - Calls by DN & Date
+select
+datetimeorigination, datetimeconnect, datetimedisconnect, callingpartynumber,
+originalcalledpartynumber, finalcalledpartynumber, duration,
+origdevicename, destdevicename, origcallterminationonbehalfof,
+destcallterminationonbehalfof, origcause, destcause
+from callmanager.cdr_basic
+where datetimeorigination between 'Mar-01-2020' and 'Mar-31-2020'
+and originalcalledpartynumber in ('5034944251')
+order by datetimeorigination
+
+
+
+CDR - Calls by Extension to DN with Date & Time Range
+SELECT globalcallid_callmanagerid
+,globalcallid_callid
+,origlegcallidentifier
+,datetimeorigination
+,callingpartynumber
+,destlegidentifier
+,originalcalledpartynumber
+,finalcalledpartynumber
+,destcause_value
+,datetimeconnect
+,datetimedisconnect
+,duration
+,destdevicename
+,incomingprotocolcallref
+,outgoingprotocolcallref
+,origcallterminationonbehalfof_text
+,destcallterminationonbehalfof_text
+FROM callmanager.cdr_augmented
+WHERE datetimeorigination BETWEEN '2020-03-03 12:00' AND '2020-03-03 15:00'
+AND (callingpartynumber = '5034944251'
+AND originalcalledpartynumber = '5034945051' or finalcalledpartynumber = '5034945051')
+
+
+
+CDR - Outbound Calls by DN & Time Period 
+select *
+from cdr_basic
+where '5034944251'
+in (callingpartynumber, finalcalledpartynumber)
+and datetimeorigination
+between 'Mar-03-2020 12:00' and 'Mar-03-2020 21:30'
+and true
+
+
+
+
+
+CDR - Query for Campus Operators (IT.CALL) 
+--Finding calls by finaldestination number. In this example it is Line 1 of the EMP either for calls less than .02sec in a day, or any calls during a day with CDR code "12". 
+
+--Customer/Caller experience: The caller reports call answered then dropped. this can suggest to many things. Experience internally on a Cisco phone: Caller see's the receiving party answer as their DN appears on the screen, then drops. And it was not a hangup by either party. 
+
+uncomment/comment those you want to pull. Also per AD name. 
+
+select
+  datetimeorigination,
+  datetimeconnect,
+  datetimedisconnect,
+  callingpartynumber,
+  originalcalledpartynumber,
+  finalcalledpartynumber,
+  duration,
+  finalcalledpartyunicodeloginuserid,
+  origdevicename,
+  destdevicename,
+  origcallterminationonbehalfof,
+  destcallterminationonbehalfof,
+  origcause_value,
+  destcause_value,
+  destcallterminationonbehalfof,
+  origcallterminationonbehalfof   
+from
+  callmanager.cdr_augmented
+  --callmanager.cdr_basic
+where
+--  array[callingpartynumber,
+--  originalcalledpartynumber,
+--  finalcalledpartynumber] && array['5034949934']
+--  and originalcalledpartynumber like '5034947000'
+--  and                                      --agent name (calls :02 or less of total calls | Total calls with term of 12 of any duration)
+---finalcalledpartynumber like '5034186581' --hoppera (110 calls of 143 calls)
+---finalcalledpartynumber like '5034186552' --sammis (4 calls of 35 calls)
+---finalcalledpartynumber like '5034186551' --cantreso (1 calls of 34 calls)
+---finalcalledpartynumber like '5034186553' --baileyv (1 calls of 8 calls)
+---finalcalledpartynumber like '5034186556' --egbe (1 calls of 21 calls)
+---finalcalledpartynumber like '5034186553' --arroyorojasb (1 calls of 8 calls)
+---finalcalledpartynumber like '5034186579' --ebyz (4 calls of 6 calls)
+---finalcalledpartynumber like '5034186558' --nteh (6 calls of 20 calls)
+---finalcalledpartynumber like '5034186561' --winkfiel (14 calls of 66 calls)
+---finalcalledpartynumber like '5034186550' --ortegaay (0 calls of 36 calls)
+---finalcalledpartynumber like '5034186574' --johnsonjam (1 calls of 6 calls)
+  and datetimeorigination between 'Jan-07-2026 12:00:01am' and 'Jan-07-2026 11:59:59pm'
+and destcallterminationonbehalfof = '12'
+---and duration <=':02'
+
+ 
+
+CDR - Finding RightFax by Called Party
+select *
+from cdr_basic
+where '5412661799' in (originalcalledpartynumber)
+--and callingpartynumber like '5033466854'
+and datetimeorigination between 'Mar-1-2020 09:35:00' and 'Mar-31-2020 09:40:00'
+
+
+
+CDR - Finding Calls by DN, Time Period and from UCCE
+select
+originalcalledpartynumber,callingpartynumber,finalcalledpartynumber,datetimeorigination,origdevicename
+FROM cdr_basic
+WHERE
+'5033460896' in (finalcalledpartynumber) and
+origdevicename like 'UCCE2%'and
+(datetimeorigination BETWEEN 'Jan-14-2021 06:00:00' AND 'Jan-14-2021 17:00:00') AND
+true
+order by datetimeorigination
+
+
+
+CDR - Finding Call Stats for Specific Device
+select * from callmanager.cmr_augmented
+where 'SEP00D6FE056ADB'
+in (localdevicename, remotedevicename)
+and datetimestamp > current_date - 10
+order by datetimestamp desc
+
+
+
+Finding Remote PSTN Usage for Last 30 Days 
+This same logic can be applied to any remote site with a PSTN PRI trunk.  The primary purpose of the query is to get a usage estimate for Twilio cost comparison to using traditional PRI circuits.  Note each query will return the result in a separate results tab.
+
+
+
+Eugene
+
+
+select sum(duration)
+from callmanager.cdr_basic
+where origdevicename = 'PSTN-Eugene-RVBv4c1'
+	and datetimeorigination > current_date - 30
+
+select sum(duration)
+from callmanager.cdr_basic  
+where destdevicename = 'PSTN-Eugene-RVBv4c1' 
+	and datetimeorigination > current_date - 30
+Medford
+
+
+select sum(duration)
+from callmanager.cdr_basic
+where origdevicename = 'PSTN-Medford-AMAr2c1'
+	and datetimeorigination > current_date - 30
+
+select sum(duration)
+from callmanager.cdr_basic  
+where destdevicename = 'PSTN-Medford-AMAr2c1' 
+	and datetimeorigination > current_date - 30
+Salem
+
+
+select sum(duration)
+from callmanager.cdr_basic
+where origdevicename = 'SHBCrouter1'
+	and datetimeorigination > current_date - 30
+
+select sum(duration)
+from callmanager.cdr_basic  
+where destdevicename = 'SHBCrouter1' 
+	and datetimeorigination > current_date - 30
+Klamath Falls
+
+
+select sum(duration)
+from callmanager.cdr_basic
+where origdevicename = 'PSTN-KlamathFalls-SLHr0c1'
+	--and datetimeorigination > current_date - 30
+	
+select sum(duration)
+from callmanager.cdr_basic  
+where destdevicename = 'PSTN-KlamathFalls-SLHr0c1' 
+	and datetimeorigination > current_date - 30
+
+
+
+
+
+
+CDR - Finding Calls with Party that Disconnects
+If you need to determine which party disconnected from the call you need to search the callmanager.cdr database in NetInfo.  Then you need to cross reference the origcallterminationonbehalfof and destcallterminationonbehalfof fields.
+
+Database Fields for Disconnect Reason
+From Cisco Call Detail Records Field Descriptions
+
+origCallTerminationOnBehalfOf
+
+0, Positive Integer
+
+Specifies code that identifies why the originator was terminated.
+
+For example, if the originator of the call hangs up the phone, the OnBehalfOf code shows "12" for Device. If the call terminates because of a transfer, the OnBehalfOf code shows "10" for Transfer.
+
+See topics related to CDR field descriptions for a list of the codes. This release added new OnBehalfOf codes.
+
+Default - 0
+
+destCallTerminationOnBehalfOf
+
+0, Positive Integer
+
+Specifies code that identifies why the destination was terminated.
+
+For example, if the destination of the call hangs up the phone, the OnBehalfOf code shows "12" for Device. If the call terminates because of a transfer, the OnBehalfOf code shows "10" for Transfer.
+
+See topics related to CDR field descriptions for a list of the codes. This release added new OnBehalfOf codes.
+
+Default - 0
+
+SQL Query
+
+
+SELECT
+    datetimeorigination,
+    callingpartynumber,
+    originalcalledpartynumber,
+    finalcalledpartynumber,
+    duration,
+    globalcallid_callid,
+    origipaddr,
+    destipaddr,
+    datetimeconnect,
+    datetimedisconnect,
+    lastredirectdn,
+    pkid,
+    origdevicename,
+    destdevicename,
+    origcallterminationonbehalfof,
+    destcallterminationonbehalfof,
+    origcalledpartyredirectonbehalfof,
+    lastredirectredirectonbehalfof,
+    origcalledpartyredirectreason,
+    lastredirectredirectreason
+FROM
+    callmanager.cdr
+WHERE
+    callingpartynumber = '5412208653'
+    AND
+        datetimeorigination
+    between 'Jan-05-2023' AND 'Jan-06-2023'
+Results
+
+
+
+
+Find Translation Pattern based on Called Party Transform Mask (Run from CUCM CLI):
+
+ This is useful for finding 800 numbers based on the remote forwarded destination. For example:  I need to know the 800 number routing to the extension 5034940219.
+
+
+
+Input
+
+run sql select dnorpattern, calledpartytransformationmask from numplan where calledpartytransformationmask LIKE '5034940219%'
+
+
+
+Output
+
+dnorpattern calledpartytransformationmask
+=========== =============================
+9712628724  5034940219
+9712628792  5034940219
+
+
+
+Pull the DNorPattern in CUCM:
+
+
+
+
+
+CDR - Finding all calls to and from a DN, removing PII and indicating In or outbound call.
+ Pull all calls to and from a specific phone number. 
+
+  Replace all details of the number we are NOT searching on to Null (for PII concerns)
+
+  Add a new column to indicate whether or not the call was Outbound or Inbound.
+
+
+
+You will need to modify the bold.
+
+
+
+SELECT
+  datetimeorigination,
+  CASE
+    WHEN callingpartynumber <> '5034949270' THEN NULL
+    ELSE callingpartynumber
+  END AS callingpartynumber,
+  CASE
+    WHEN finalcalledpartynumber <> '5034949270' THEN NULL
+    ELSE finalcalledpartynumber
+  END AS finalcalledpartynumber,
+  duration,
+  CASE
+    WHEN callingpartynumber = '5034949270' THEN 'Outbound'
+    WHEN finalcalledpartynumber = '5034949270' THEN 'Inbound'
+    ELSE NULL
+  END AS direction
+FROM
+  callmanager.cdr_augmented
+WHERE
+  datetimeorigination BETWEEN '2022-12-01 00:00' AND '2023-04-30 24:00'
+  AND (callingpartynumber = '5034949270' OR finalcalledpartynumber = '5034949270')
+
+
+
+
+
+
+
+CUCM - Find all Registered VPN phones
+select class,name,ipaddress,protocol,status,ipaddress from ris_current
+where class like 'Phone'
+and status like 'Registered'
+and "name" like 'SEP%'
+and ipaddress::text like '10.245%'
+
+
+
+Codec Negotiation
+SELECT
+    datetimeorigination,
+    callingpartynumber,
+    originalcalledpartynumber,
+    finalcalledpartynumber,
+    duration,
+    globalcallid_callid,
+    origipaddr,
+    destipaddr,
+    datetimeconnect,
+    datetimedisconnect,
+    lastredirectdn,
+    pkid,
+    origdevicename,
+    destdevicename,
+    origcallterminationonbehalfof,
+    destcallterminationonbehalfof,
+    origcalledpartyredirectonbehalfof,
+    lastredirectredirectonbehalfof,
+    origcalledpartyredirectreason,
+    lastredirectredirectreason,
+    origmediacap_payloadcapability,
+    destmediacap_payloadcapability
+FROM
+    callmanager.cdr_augmented ca 
+WHERE
+   destdevicename = 'RightFax-Prod-RFAXDT3'
+    AND
+        datetimeorigination
+    between 'Dec-10-2024' AND 'Dec-11-2024'
+
+
+
+Use origmediacap_payloadcapability to determine what codec the calling party is trying to use.
+
+
+
+
+
+match the value to the chart found here: https://www.cisco.com/c/en/us/td/docs/voice_ip_comm/cucm/callReportingBillingAdmin/15/cucm_b_reporting-billing-administration-guide-15/cucm_b_reporting-and-billing-administration-guide_chapter_01010.pdf#page=25&zoom=100,61,769
+
+
+
+i.e
+
+4 = g711
+
+Public Safety - common report request and CDR request
+Typical requests include two parts (one is Aceyus and one is CDR)
+
+https://wiki.ohsu.edu/x/X4bmCw (towards the bottom)
+
+Created by Vaden Green, last updated on Oct 16, 2025  7 minute read
+CDR - Query for Global Call ID by DN
+CDR - Query by Global Call ID and Date Time
+CDR - Basic Call Count by Date Range
+CDR - Calls by Calling Party
+CDR Augmented - Calls by Calling Party
+CDR - Calls by DN & Date
+CDR - Calls to IT.CALL Extension by Date & Time
+CDR - Calls by Extension to DN with Date & Time Range
+CDR - Outbound Calls by DN & Time Period 
+CDR - Finding RightFax by Called Party
+CDR - Finding Calls by DN, Time Period and from UCCE
+CDR - Finding Call Stats for Specific Device
+Finding Remote PSTN Usage for Last 30 Days 
+Eugene
+Medford
+Salem
+Klamath Falls
+CDR - Finding Calls with Party that Disconnects
+Database Fields for Disconnect Reason
+SQL Query
+Results
+Uncompleted Calls to Frontier in Last 10 Days
+Calls to Campus Operators (Multiple DNs) for Specific Date-Time Range
+CDR - Query for Global Call ID by DN
+
+
+
+SELECT originalcalledpartynumber,
+        callingpartynumber,
+        finalcalledpartynumber,
+        globalcallid_callid,
+        datetimeorigination
+FROM   cdr WHERE  '5034944251' IN (callingpartynumber)
+AND    datetimeorigination BETWEEN 'Oct-29-2019 07:30:00' AND    'Oct-29-2019 16:00:00'
+AND    true
+
+
+
+
+CDR - Query by Global Call ID and Date Time
+
+
+--Finding calls by Global Call ID, need to get this from CDR data for a specific call.
+SELECT *
+FROM   cdr
+WHERE  '3103540' IN ( globalcallid_callid )
+        AND datetimeorigination BETWEEN
+            'Aug-6-2019 07:30:01' AND 'Aug-6-2019 07:33:00'
+        AND true 
+        
+
+
+
+CDR - Basic Call Count by Date Range
+
+
+-- Generates a report of the number of completed calls and the total duration of calls to a given list of DNs. There are a few considerations:
+-- You can add as many directory numbers to the top of the SQL query
+-- The start and end date must be set in TWO places towards the bottom.
+-- This counts call legs and not calls. If a call has 59,000 legs, then it MAY show up as 59,000 calls.
+-- I will not swear to the absolute accuracy of the report. There are probably odd calls flows that could cause legs to be missed or counted more than once
+-- Minor modifications COULD be made to count devices instead of directory numbers, which may be of greater use
+WITH directory_number (dn)
+      AS (VALUES ('5034944251'), ('5034944256'))
+SELECT directory_number.dn,
+        Coalesce(Activity.calls, 0)                         AS calls,
+        Coalesce(Activity.duration, '00:00:00' :: interval) duration
+FROM   directory_number
+        LEFT JOIN (
+                  -- roll up the list of DNs and durations
+                  SELECT ActivitySummery.dn,
+                        COUNT(ActivitySummery.dn)     AS calls,
+                        Sum(ActivitySummery.duration) AS duration
+                  FROM   (
+                          -- generate a list of DNs and durations that match the critera
+                          SELECT *
+                          FROM   ((
+                                  -- generate a list of all calls where the calling party number matches
+                                  SELECT callingpartynumber AS DN,
+                                          duration
+                                    FROM   callmanager.cdr
+                                    WHERE  datetimeorigination BETWEEN
+                                          '2020-Mar-01' AND '2020-Mar-31'
+                                          AND callingpartynumber IN (SELECT dn
+                                                                      FROM
+                                              directory_number)
+                                          AND duration > '00:00:00' :: interval)
+                                  UNION ALL
+                                  (
+                                  -- generate a list of all calls where the final called party number matches
+                                  SELECT finalcalledpartynumber AS DN,
+                                          duration
+                                    FROM   callmanager.cdr
+                                    WHERE  datetimeorigination BETWEEN
+                                          '2020-Mar-01' AND '2020-Mar-31'
+                                          AND finalcalledpartynumber IN (SELECT
+                                              dn
+                                                                          FROM
+                                              directory_number)
+                                          AND duration > '00:00:00' :: interval)
+                                  ) AS
+                                  ActivtyDetail) AS
+                          ActivitySummery
+                  GROUP  BY ActivitySummery.dn) AS Activity
+              ON ( directory_number.dn = Activity.dn )
+ORDER  BY dn 
+
+
+
+
+CDR - Calls by Calling Party
+SELECT
+*
+FROM cdr_basic
+WHERE
+'5038910996' IN (callingpartynumber) AND
+datetimeorigination between 'Mar-01-2020' and 'Mar-31-2020' AND
+true
+
+
+
+CDR Augmented - Calls by Calling Party
+
+
+SELECT
+  globalcallid_callid,
+  datetimeorigination,
+  callingpartynumber,
+  origmediatransportaddress_ip,
+  destipaddr,
+  originalcalledpartynumber,
+  finalcalledpartynumber,
+  finalcalledpartyunicodeloginuserid
+  datetimeconnect, 
+  datetimedisconnect,
+  lastredirectdn,
+  duration,
+  origdevicename,
+  destdevicename,
+  origcallterminationonbehalfof,
+  destcallterminationonbehalfof,
+  origcause_text,
+  destcause_text,
+  callingpartynumber_state,
+  callingpartynumber_rate_center,
+  callingpartynumber_carrier, 
+  originalcalledpartynumber_state,
+  originalcalledpartynumber_rate_center,
+  originalcalledpartynumber_carrier
+FROM 
+  cdr_augmented
+WHERE
+  5413822811' IN (callingpartynumber) AND
+  datetimeorigination between 'Dec-12-2024 00:00:00' AND 'Dec-12-2024 14:22:00' AND
+  true
+ORDER BY datetimeorigination
+
+
+CDR - Calls by DN & Date
+select
+datetimeorigination, datetimeconnect, datetimedisconnect, callingpartynumber,
+originalcalledpartynumber, finalcalledpartynumber, duration,
+origdevicename, destdevicename, origcallterminationonbehalfof,
+destcallterminationonbehalfof, origcause, destcause
+from callmanager.cdr_basic
+where datetimeorigination between 'Mar-01-2020' and 'Mar-31-2020'
+and originalcalledpartynumber in ('5034944251')
+order by datetimeorigination
+
+
+
+CDR - Calls to IT.CALL Extension by Date & Time
+select
+datetimeorigination
+,callingpartynumber
+,originalcalledpartynumber
+,finalcalledpartynumber
+,datetimeconnect
+,datetimedisconnect
+,duration
+,destdevicename
+,origdevicename
+from
+callmanager.cdr_augmented
+where
+datetimeorigination BETWEEN '2022-01-15 5:00am' AND '2022-01-15 7:00am'
+AND (
+originalcalledpartynumber = '5034180203'
+or originalcalledpartynumber = '5034183748'
+or originalcalledpartynumber = '5034941611'
+or originalcalledpartynumber = '5034945234'
+or originalcalledpartynumber = '5034947585'
+or originalcalledpartynumber = '5034948111'
+or originalcalledpartynumber = '5034948211'
+or originalcalledpartynumber = '5034948311'
+or originalcalledpartynumber = '5034949000'
+or originalcalledpartynumber = '5034949011'
+or originalcalledpartynumber = '5034949012'
+or originalcalledpartynumber = '5034949021'
+or originalcalledpartynumber = '5034949727'
+or originalcalledpartynumber = '5034949999'
+or originalcalledpartynumber = '5035287200'
+--These are all of the directory numbers that are answered by the Campus Operators)
+)
+order by datetimeconnect
+
+
+
+CDR - Calls by Extension to DN with Date & Time Range
+SELECT globalcallid_callmanagerid
+,globalcallid_callid
+,origlegcallidentifier
+,datetimeorigination
+,callingpartynumber
+,destlegidentifier
+,originalcalledpartynumber
+,finalcalledpartynumber
+,destcause_value
+,datetimeconnect
+,datetimedisconnect
+,duration
+,destdevicename
+,incomingprotocolcallref
+,outgoingprotocolcallref
+,origcallterminationonbehalfof_text
+,destcallterminationonbehalfof_text
+FROM callmanager.cdr_augmented
+WHERE datetimeorigination BETWEEN '2020-03-03 12:00' AND '2020-03-03 15:00'
+AND (callingpartynumber = '5034944251'
+AND originalcalledpartynumber = '5034945051' or finalcalledpartynumber = '5034945051')
+
+
+
+CDR - Outbound Calls by DN & Time Period 
+select *
+from cdr_basic
+where '5034944251'
+in (callingpartynumber, finalcalledpartynumber)
+and datetimeorigination
+between 'Mar-03-2020 12:00' and 'Mar-03-2020 21:30'
+and true
+
+
+
+CDR - Finding RightFax by Called Party
+select *
+from cdr_basic
+where '5412661799' in (originalcalledpartynumber)
+--and callingpartynumber like '5033466854'
+and datetimeorigination between 'Mar-1-2020 09:35:00' and 'Mar-31-2020 09:40:00'
+
+
+
+CDR - Finding Calls by DN, Time Period and from UCCE
+select
+originalcalledpartynumber,callingpartynumber,finalcalledpartynumber,datetimeorigination,origdevicename
+FROM cdr_basic
+WHERE
+'5033460896' in (finalcalledpartynumber) and
+origdevicename like 'UCCE2%'and
+(datetimeorigination BETWEEN 'Jan-14-2021 06:00:00' AND 'Jan-14-2021 17:00:00') AND
+true
+order by datetimeorigination
+
+
+
+CDR - Finding Call Stats for Specific Device
+select * from callmanager.cmr_augmented
+where 'SEP00D6FE056ADB'
+in (localdevicename, remotedevicename)
+and datetimestamp > current_date - 10
+order by datetimestamp desc
+
+
+
+Finding Remote PSTN Usage for Last 30 Days 
+This same logic can be applied to any remote site with a PSTN PRI trunk.  The primary purpose of the query is to get a usage estimate for Twilio cost comparison to using traditional PRI circuits.  Note each query will return the result in a separate results tab.
+
+
+
+Eugene
+
+
+select sum(duration)
+from callmanager.cdr_basic
+where origdevicename = 'PSTN-Eugene-RVBv4c1'
+  and datetimeorigination > current_date - 30
+  
+select sum(duration)
+from callmanager.cdr_basic  
+where destdevicename = 'PSTN-Eugene-RVBv4c1' 
+  and datetimeorigination > current_date - 30
+Medford
+
+
+select sum(duration)
+from callmanager.cdr_basic
+where origdevicename = 'PSTN-Medford-AMAr2c1'
+  and datetimeorigination > current_date - 30
+  
+select sum(duration)
+from callmanager.cdr_basic  
+where destdevicename = 'PSTN-Medford-AMAr2c1' 
+  and datetimeorigination > current_date - 30
+Salem
+
+
+select sum(duration)
+from callmanager.cdr_basic
+where origdevicename = 'SHBCvgw01'
+  and datetimeorigination > current_date - 30
+  
+select sum(duration)
+from callmanager.cdr_basic  
+where destdevicename = 'SHBCvgw01' 
+  and datetimeorigination > current_date - 30
+Klamath Falls
+
+
+select sum(duration)
+from callmanager.cdr_basic
+where origdevicename = 'PSTN-KlamathFalls-SLHr0c1'
+  --and datetimeorigination > current_date - 30
+  
+select sum(duration)
+from callmanager.cdr_basic  
+where destdevicename = 'PSTN-KlamathFalls-SLHr0c1' 
+  and datetimeorigination > current_date - 30
+  
+
+
+
+
+
+CDR - Finding Calls with Party that Disconnects
+If you need to determine which party disconnected from the call you need to search the callmanager.cdr database in NetInfo.  Then you need to cross reference the origcallterminationonbehalfof and destcallterminationonbehalfof fields.
+
+Database Fields for Disconnect Reason
+From Cisco Call Detail Records Field Descriptions
+
+origCallTerminationOnBehalfOf
+
+0, Positive Integer
+
+Specifies code that identifies why the originator was terminated.
+
+For example, if the originator of the call hangs up the phone, the OnBehalfOf code shows "12" for Device. If the call terminates because of a transfer, the OnBehalfOf code shows "10" for Transfer.
+
+See topics related to CDR field descriptions for a list of the codes. This release added new OnBehalfOf codes.
+
+Default - 0
+
+destCallTerminationOnBehalfOf
+
+0, Positive Integer
+
+Specifies code that identifies why the destination was terminated.
+
+For example, if the destination of the call hangs up the phone, the OnBehalfOf code shows "12" for Device. If the call terminates because of a transfer, the OnBehalfOf code shows "10" for Transfer.
+
+See topics related to CDR field descriptions for a list of the codes. This release added new OnBehalfOf codes.
+
+Default - 0
+
+SQL Query
+
+
+SELECT 
+  datetimeorigination, 
+  callingpartynumber, 
+  originalcalledpartynumber, 
+  finalcalledpartynumber, 
+  duration, 
+  globalcallid_callid, 
+  origipaddr, 
+  destipaddr, 
+  datetimeconnect, 
+  datetimedisconnect, 
+  lastredirectdn, 
+  pkid, 
+  origdevicename, 
+  destdevicename, 
+  origcallterminationonbehalfof, 
+  destcallterminationonbehalfof, 
+  origcalledpartyredirectonbehalfof, 
+  lastredirectredirectonbehalfof, 
+  origcalledpartyredirectreason, 
+  lastredirectredirectreason
+FROM 
+  callmanager.cdr
+WHERE
+  callingpartynumber = '5412208653'
+  AND 
+    datetimeorigination 
+  between 'Jan-05-2023' AND 'Jan-06-2023'
+Results
+
+
+Uncompleted Calls to Frontier in Last 10 Days
+
+
+select
+      date_trunc('hour',datetimeorigination) as interval,
+      count(*),
+      repeat('■',(count(*)::float / 10)::int) as bar
+from
+      callmanager.cdr_augmented
+where
+      datetimeorigination > current_date -10 and
+      finalcalledpartynumber_carrier = 'FRONTIER COMMUNICATIONS NORTHWEST, INC. - OR' and
+      duration = '00:00:00' and
+      origdevicename not like 'RightFax-Prod-%'
+group by 
+      date_trunc('hour',datetimeorigination)
+order by
+      date_trunc('hour',datetimeorigination)
+      
+
+Calls to Campus Operators (Multiple DNs) for Specific Date-Time Range
+This is useful for finding calls that are being recorded in Inform. You can use this to determine that the recordings available in Inform match calls taken by the Operators.
+
+
+
+SELECT
+  datetimeorigination, origipaddr, callingpartynumber, origmediatransportaddress_ip, destipaddr, originalcalledpartynumber, finalcalledpartynumber, finalcalledpartyunicodeloginuserid, datetimeconnect, 				
+  datetimedisconnect, lastredirectdn, pkid, duration, origdevicename, destdevicename
+FROM 
+  callmanager.cdr_augmented
+WHERE
+  originalcalledpartynumber	in('5034949021','5034947585','5035287200','9712626500','5034948811','5034945234','5034949999','5034948111','5034180203','5034948311','5034949012','5034948211','5034949727','5034949000','5034949011','5034941611')
+AND
+  datetimeconnect between '2025-10-14 11:50pm' and '2025-10-15 12:10am'
+  
