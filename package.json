@@ -1,0 +1,26 @@
+{
+  "name": "cisco-cucm-cdr",
+  "version": "0.1.0",
+  "description": "CUCM CDR/CMR processor with AXL enrichment, MCP server, and REST API",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test test/**/*.test.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.28.0",
+    "chokidar": "^5.0.0",
+    "cisco-axl": "^2.1.0",
+    "csv-parse": "^6.2.1",
+    "express": "^5.2.1",
+    "node-cron": "^4.2.1",
+    "pg": "^8.20.0",
+    "uuid": "^13.0.0",
+    "zod": "^4.3.6"
+  }
+}

@@ -1,0 +1,44 @@
+version: "3.8"
+
+services:
+  cdr-processor:
+    build: .
+    container_name: cisco-cucm-cdr
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ${CDR_INCOMING_DIR:-./data/incoming}:/data/incoming
+    environment:
+      - DATABASE_URL=postgresql://cdr:${POSTGRES_PASSWORD:-cdr_password}@postgres:5432/callmanager
+      - AXL_HOST=${AXL_HOST:-}
+      - AXL_USERNAME=${AXL_USERNAME:-}
+      - AXL_PASSWORD=${AXL_PASSWORD:-}
+      - AXL_VERSION=${AXL_VERSION:-15.0}
+      - CDR_RETENTION_DAYS=${CDR_RETENTION_DAYS:-90}
+      - MCP_PORT=3000
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: cisco-cucm-cdr-db
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=callmanager
+      - POSTGRES_USER=cdr
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-cdr_password}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cdr -d callmanager"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
