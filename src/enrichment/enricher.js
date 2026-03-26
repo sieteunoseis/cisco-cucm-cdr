@@ -1,6 +1,9 @@
 const axlService = require("cisco-axl");
 const { getCache, setCache } = require("./cache");
 
+// CUCM device names are alphanumeric (SEPxxxx, CSFxxxx, etc.)
+const DEVICE_NAME_RE = /^[A-Za-z0-9_\-.]+$/;
+
 const AXL_DEVICE_SQL = `
   SELECT d.name, d.description, dp.name AS devicepool,
          loc.name AS location, eu.userid
@@ -57,7 +60,9 @@ async function lookupDevices(clusterConfig, deviceNames) {
     clusterConfig.password,
     clusterConfig.version,
   );
-  const quoted = deviceNames.map((n) => `'${n.replace(/'/g, "''")}'`).join(",");
+  const safeNames = deviceNames.filter((n) => DEVICE_NAME_RE.test(n));
+  if (safeNames.length === 0) return new Map();
+  const quoted = safeNames.map((n) => `'${n}'`).join(",");
   const sql = AXL_DEVICE_SQL.replace("%PLACEHOLDERS%", quoted);
   const rows = await service.executeSqlQuery(sql);
   const results = new Map();
@@ -121,6 +126,7 @@ async function enrichCdrRecords(pool, records, axlConfig) {
   }
   if (!records || records.length === 0) return records;
 
+  // CDR files are per-cluster, so all records share the same clusterid
   const clusterId = records[0].globalcallid_clusterid;
   const clusterConfig = findClusterConfig(axlConfig.clusters, clusterId);
   if (!clusterConfig) {
