@@ -77,21 +77,45 @@ curl http://localhost:3000/health
 
 ## Configuration
 
-| Variable             | Default                                                   | Description                                |
-| -------------------- | --------------------------------------------------------- | ------------------------------------------ |
-| `DATABASE_URL`       | `postgresql://cdr:cdr_password@postgres:5432/callmanager` | Postgres connection string                 |
-| `AXL_HOST`           | (none)                                                    | CUCM publisher hostname for AXL enrichment |
-| `AXL_USERNAME`       | (none)                                                    | AXL API username                           |
-| `AXL_PASSWORD`       | (none)                                                    | AXL API password                           |
-| `AXL_VERSION`        | `15.0`                                                    | CUCM AXL schema version                    |
-| `CDR_INCOMING_DIR`   | `/data/incoming`                                          | Directory to watch for CDR/CMR files       |
-| `CDR_RETENTION_DAYS` | `90`                                                      | Days to retain CDR/CMR data                |
-| `MCP_PORT`           | `3000`                                                    | Port for MCP + REST API server             |
-| `LOG_LEVEL`          | `info`                                                    | Log level                                  |
-| `POSTGRES_PASSWORD`  | `cdr_password`                                            | Postgres password (compose only)           |
-| `POSTGRES_PORT`      | `5432`                                                    | Postgres exposed port (compose only)       |
+| Variable             | Default                                                   | Description                            |
+| -------------------- | --------------------------------------------------------- | -------------------------------------- |
+| `DATABASE_URL`       | `postgresql://cdr:cdr_password@postgres:5432/callmanager` | Postgres connection string             |
+| `AXL_HOST_1`         | (none)                                                    | CUCM publisher hostname for cluster 1  |
+| `AXL_USERNAME_1`     | (none)                                                    | AXL API username for cluster 1         |
+| `AXL_PASSWORD_1`     | (none)                                                    | AXL API password for cluster 1         |
+| `AXL_VERSION_1`      | `15.0`                                                    | CUCM AXL schema version for cluster 1  |
+| `AXL_CLUSTER_ID_1`   | (none)                                                    | CUCM Enterprise Parameter "Cluster ID" |
+| `AXL_CACHE_TTL`      | `86400`                                                   | Enrichment cache TTL in seconds (24h)  |
+| `CDR_INCOMING_DIR`   | `/data/incoming`                                          | Directory to watch for CDR/CMR files   |
+| `CDR_RETENTION_DAYS` | `90`                                                      | Days to retain CDR/CMR data            |
+| `MCP_PORT`           | `3000`                                                    | Port for MCP + REST API server         |
+| `LOG_LEVEL`          | `info`                                                    | Log level (`info`, `debug`)            |
+| `POSTGRES_PASSWORD`  | `cdr_password`                                            | Postgres password (compose only)       |
+| `POSTGRES_PORT`      | `5432`                                                    | Postgres exposed port (compose only)   |
 
-AXL enrichment is optional. If `AXL_HOST`, `AXL_USERNAME`, and `AXL_PASSWORD` are not set, the processor skips enrichment and stores raw CDR/CMR data only.
+### Multi-Cluster AXL Enrichment
+
+Up to 5 CUCM clusters are supported using numbered environment variables (`_1` through `_5`). Each cluster is matched to CDR records by the `globalcallid_clusterid` field, which corresponds to the CUCM Enterprise Parameter "Cluster ID" (System > Enterprise Parameters in CUCM admin).
+
+```bash
+# Cluster 1
+AXL_HOST_1=cucm-pub1.example.com
+AXL_USERNAME_1=axl-user
+AXL_PASSWORD_1=axl-password
+AXL_VERSION_1=15.0
+AXL_CLUSTER_ID_1=ohsuCUCMprod
+
+# Cluster 2
+AXL_HOST_2=cucm-pub2.example.com
+AXL_USERNAME_2=axl-user
+AXL_PASSWORD_2=axl-password
+AXL_VERSION_2=14.0
+AXL_CLUSTER_ID_2=cucmOHSUtest
+```
+
+Enrichment is optional. If no `AXL_HOST_*` variables are set, the processor skips enrichment and stores raw CDR/CMR data. Enrichment results are cached in PostgreSQL (default 24 hours) to minimize AXL queries.
+
+Enriched fields: device description, device pool, location, owner user ID.
 
 ## CUCM Billing Server Setup
 
