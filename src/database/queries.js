@@ -109,6 +109,12 @@ async function searchCdr(pool, params) {
       c.origmediacap_payloadcapability,
       codec.description AS orig_codec_description,
       c.callsecuredstatus,
+      c.lastredirectdn,
+      c.lastredirectredirectreason,
+      c.origcalledpartyredirectreason,
+      c.origcallterminationonbehalfof,
+      c.destcallterminationonbehalfof,
+      c.joinonbehalfof,
       ${ENRICHMENT_COLS}
     FROM cdr c
     LEFT JOIN cdr_cause oc ON c.origcause_value = oc.id
