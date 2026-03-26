@@ -1,3 +1,12 @@
+// Syslog-style timestamps on all console output
+const _log = console.log;
+const _warn = console.warn;
+const _error = console.error;
+const ts = () => new Date().toISOString().replace("T", " ").replace("Z", "");
+console.log = (...args) => _log(ts(), "INFO", ...args);
+console.warn = (...args) => _warn(ts(), "WARN", ...args);
+console.error = (...args) => _error(ts(), "ERROR", ...args);
+
 const config = require("./config");
 const pool = require("./database/pool");
 const { initSchema } = require("./database/schema");
