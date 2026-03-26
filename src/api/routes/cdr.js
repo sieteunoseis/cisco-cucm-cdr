@@ -69,16 +69,14 @@ function createCdrRouter(pool) {
         return res.json({ count: 0, results: [] });
       }
 
-      // Collect all phone numbers involved
+      // Collect direct party numbers only (not queue/trunk numbers that match too broadly)
       const numbers = new Set();
       let minTime = null;
       let maxTime = null;
       for (const row of source.rows) {
+        // Only use the calling party and final called — these identify the actual parties
         if (row.callingpartynumber) numbers.add(row.callingpartynumber);
         if (row.finalcalledpartynumber) numbers.add(row.finalcalledpartynumber);
-        if (row.originalcalledpartynumber)
-          numbers.add(row.originalcalledpartynumber);
-        if (row.lastredirectdn) numbers.add(row.lastredirectdn);
         const orig = new Date(row.datetimeorigination).getTime();
         const disc = row.datetimedisconnect
           ? new Date(row.datetimedisconnect).getTime()
@@ -87,7 +85,7 @@ function createCdrRouter(pool) {
         if (!maxTime || disc > maxTime) maxTime = disc;
       }
 
-      // Remove BIB/recording numbers and very short numbers
+      // Remove BIB/recording numbers, CTI route points, and very short numbers
       const filtered = [...numbers].filter(
         (n) => n.length >= 4 && !/^b\d{5,}/.test(n) && !/^777777/.test(n),
       );
