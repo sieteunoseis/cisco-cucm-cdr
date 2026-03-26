@@ -43,6 +43,103 @@ function createCdrRouter(pool) {
     }
   });
 
+  // GET /api/v1/cdr/related/:callId — find related call legs (transfers, conferences)
+  router.get("/related/:callId", async (req, res) => {
+    try {
+      const callManagerId = req.query.callmanager_id;
+
+      // First get the source CDR to extract numbers and time window
+      const conditions = ["globalcallid_callid = $1"];
+      const values = [req.params.callId];
+      if (callManagerId) {
+        conditions.push("globalcallid_callmanagerid = $2");
+        values.push(callManagerId);
+      }
+
+      const source = await pool.query(
+        `SELECT callingpartynumber, finalcalledpartynumber, originalcalledpartynumber,
+                lastredirectdn, datetimeorigination, datetimedisconnect,
+                globalcallid_callid, globalcallid_callmanagerid
+         FROM cdr WHERE ${conditions.join(" AND ")}
+         ORDER BY datetimeorigination ASC LIMIT 10`,
+        values,
+      );
+
+      if (source.rows.length === 0) {
+        return res.json({ count: 0, results: [] });
+      }
+
+      // Collect all phone numbers involved
+      const numbers = new Set();
+      let minTime = null;
+      let maxTime = null;
+      for (const row of source.rows) {
+        if (row.callingpartynumber) numbers.add(row.callingpartynumber);
+        if (row.finalcalledpartynumber) numbers.add(row.finalcalledpartynumber);
+        if (row.originalcalledpartynumber)
+          numbers.add(row.originalcalledpartynumber);
+        if (row.lastredirectdn) numbers.add(row.lastredirectdn);
+        const orig = new Date(row.datetimeorigination).getTime();
+        const disc = row.datetimedisconnect
+          ? new Date(row.datetimedisconnect).getTime()
+          : orig;
+        if (!minTime || orig < minTime) minTime = orig;
+        if (!maxTime || disc > maxTime) maxTime = disc;
+      }
+
+      // Remove BIB/recording numbers and very short numbers
+      const filtered = [...numbers].filter(
+        (n) => n.length >= 4 && !/^b\d{5,}/.test(n) && !/^777777/.test(n),
+      );
+
+      if (filtered.length === 0) {
+        return res.json({ count: 0, results: [] });
+      }
+
+      // Search 5 min window around the call
+      const windowStart = new Date(minTime - 300000).toISOString();
+      const windowEnd = new Date(maxTime + 300000).toISOString();
+
+      // Build OR conditions for each number across multiple fields
+      const numConditions = filtered.map((_, i) => {
+        const p = i + 3; // $1=start, $2=end, then numbers
+        return `(c.callingpartynumber = $${p} OR c.finalcalledpartynumber = $${p} OR c.originalcalledpartynumber = $${p} OR c.lastredirectdn = $${p})`;
+      });
+
+      const sql = `
+        SELECT c.pkid, c.globalcallid_callid, c.globalcallid_callmanagerid,
+               c.globalcallid_clusterid, c.callingpartynumber, c.finalcalledpartynumber,
+               c.originalcalledpartynumber, c.lastredirectdn, c.origdevicename,
+               c.destdevicename, c.datetimeorigination, c.datetimeconnect,
+               c.datetimedisconnect, c.duration, c.origcause_value,
+               oc.description AS origcause_description,
+               c.destcause_value, dc.description AS destcause_description,
+               c.origcallterminationonbehalfof, c.destcallterminationonbehalfof,
+               c.joinonbehalfof, c.lastredirectredirectreason,
+               c.orig_device_description, c.dest_device_description
+        FROM cdr c
+        LEFT JOIN cdr_cause oc ON c.origcause_value = oc.id
+        LEFT JOIN cdr_cause dc ON c.destcause_value = dc.id
+        WHERE c.datetimeorigination BETWEEN $1 AND $2
+          AND (${numConditions.join(" OR ")})
+          AND c.globalcallid_callid != $${filtered.length + 3}
+        ORDER BY c.datetimeorigination ASC
+        LIMIT 50
+      `;
+
+      const result = await pool.query(sql, [
+        windowStart,
+        windowEnd,
+        ...filtered,
+        parseInt(req.params.callId, 10),
+      ]);
+
+      res.json({ count: result.rows.length, results: result.rows });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // GET /api/v1/cdr/stats/:type
   router.get("/stats/:type", async (req, res) => {
     try {
