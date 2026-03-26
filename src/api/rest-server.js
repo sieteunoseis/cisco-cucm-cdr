@@ -2,6 +2,7 @@ const express = require("express");
 const { createCdrRouter } = require("./routes/cdr");
 const { createHealthRouter } = require("./routes/health");
 const { createSqlRouter } = require("./routes/sql");
+const { createLogsRouter } = require("./routes/logs");
 
 function createRestServer(pool) {
   const app = express();
@@ -21,6 +22,7 @@ function createRestServer(pool) {
   // Mount routes
   app.use("/api/v1/cdr", createCdrRouter(pool));
   app.use("/api/v1/cdr/sql", createSqlRouter(pool));
+  app.use("/api/v1/cdr/logs", createLogsRouter(pool));
   app.use("/api/v1/health", createHealthRouter(pool));
 
   // 404 fallback for unknown API routes
