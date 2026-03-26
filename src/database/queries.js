@@ -28,6 +28,7 @@ async function searchCdr(pool, params) {
   const {
     calling,
     called,
+    number,
     device,
     cause,
     last,
@@ -40,6 +41,13 @@ async function searchCdr(pool, params) {
   const values = [];
   let idx = 1;
 
+  if (number) {
+    conditions.push(
+      `(c.callingpartynumber LIKE $${idx} OR c.finalcalledpartynumber LIKE $${idx} OR c.originalcalledpartynumber LIKE $${idx})`,
+    );
+    values.push(`%${number}%`);
+    idx++;
+  }
   if (calling) {
     conditions.push(`c.callingpartynumber LIKE $${idx++}`);
     values.push(`%${calling}%`);
