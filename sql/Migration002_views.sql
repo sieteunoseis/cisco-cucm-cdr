@@ -2,6 +2,7 @@
 -- These views make the raw CDR/CMR tables easier to query directly in DBeaver/psql
 
 -- cdr_basic: Human-readable timestamps, duration, and core call fields
+DROP VIEW IF EXISTS cdr_basic;
 CREATE OR REPLACE VIEW cdr_basic AS
 SELECT
     pkid,
