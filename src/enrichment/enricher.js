@@ -64,10 +64,8 @@ async function lookupDevices(clusterConfig, deviceNames) {
   if (safeNames.length === 0) return new Map();
   const quoted = safeNames.map((n) => `'${n}'`).join(",");
   const sql = AXL_DEVICE_SQL.replace("%PLACEHOLDERS%", quoted);
-  const rows = await service.executeSqlQuery(sql);
-  console.log(
-    `AXL debug: query returned type=${typeof rows}, isArray=${Array.isArray(rows)}, value=${JSON.stringify(rows).slice(0, 500)}`,
-  );
+  const response = await service.executeSqlQuery(sql);
+  const rows = Array.isArray(response) ? response : response?.row || [];
   const results = new Map();
   if (Array.isArray(rows)) {
     for (const row of rows) {
@@ -100,6 +98,9 @@ async function resolveDevices(pool, clusterConfig, deviceNames, cacheTtl) {
   }
 
   if (uncached.length > 0) {
+    console.debug(
+      `AXL lookup: ${uncached.length} uncached devices for cluster "${clusterConfig.clusterId}"`,
+    );
     const looked = await lookupDevices(clusterConfig, uncached);
     for (const [name, data] of looked) {
       deviceMap.set(name, data);

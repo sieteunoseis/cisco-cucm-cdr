@@ -2,10 +2,14 @@
 const _log = console.log;
 const _warn = console.warn;
 const _error = console.error;
+const _debug = console.debug;
 const ts = () => new Date().toISOString().replace("T", " ").replace("Z", "");
+const logLevel = process.env.LOG_LEVEL || "info";
 console.log = (...args) => _log(ts(), "INFO", ...args);
 console.warn = (...args) => _warn(ts(), "WARN", ...args);
 console.error = (...args) => _error(ts(), "ERROR", ...args);
+console.debug =
+  logLevel === "debug" ? (...args) => _debug(ts(), "DEBUG", ...args) : () => {};
 
 const config = require("./config");
 const pool = require("./database/pool");
