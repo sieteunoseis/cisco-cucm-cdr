@@ -1,6 +1,7 @@
 const path = require("path");
 
-const FILENAME_REGEX = /^(cdr|cmr)_(\w+)_(\d+)_(\d+)_(\d+)$/;
+// Cluster names can contain hyphens (e.g., OHSU-CUCM-LAB)
+const FILENAME_REGEX = /^(cdr|cmr)_([\w-]+)_(\d+)_(\d+)_(\d+)$/;
 
 function parseFilename(filename) {
   const basename = path.basename(filename);
