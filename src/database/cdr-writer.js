@@ -134,6 +134,19 @@ const CDR_COLUMNS = [
   "destdevicetype",
   "origdevicesessionid",
   "destdevicesessionid",
+  // Enrichment columns (populated by AXL lookups)
+  "orig_device_description",
+  "orig_device_user",
+  "orig_device_pool",
+  "orig_device_location",
+  "dest_device_description",
+  "dest_device_user",
+  "dest_device_pool",
+  "dest_device_location",
+  "calling_party_user",
+  "called_party_user",
+  "route_pattern_matched",
+  "enriched_at",
 ];
 
 async function insertCdrRecords(pool, records) {
