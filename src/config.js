@@ -3,10 +3,18 @@ function parseAxlClusters() {
   for (let i = 1; i <= 5; i++) {
     const host = process.env[`AXL_HOST_${i}`];
     if (!host) continue;
+    const username = process.env[`AXL_USERNAME_${i}`] || "";
+    const password = process.env[`AXL_PASSWORD_${i}`] || "";
+    if (!username || !password) {
+      console.warn(
+        `AXL cluster ${i}: host set but missing username or password, skipping`,
+      );
+      continue;
+    }
     clusters.push({
       host,
-      username: process.env[`AXL_USERNAME_${i}`] || "",
-      password: process.env[`AXL_PASSWORD_${i}`] || "",
+      username,
+      password,
       version: process.env[`AXL_VERSION_${i}`] || "15.0",
       clusterId: process.env[`AXL_CLUSTER_ID_${i}`] || "",
     });
@@ -22,7 +30,7 @@ const config = {
   },
   axl: {
     clusters: parseAxlClusters(),
-    cacheTtl: parseInt(process.env.AXL_CACHE_TTL || "86400", 10),
+    cacheTtl: parseInt(process.env.AXL_CACHE_TTL || "86400", 10) || 86400,
   },
   cdr: {
     incomingDir: process.env.CDR_INCOMING_DIR || "/data/incoming",
