@@ -1,14 +1,26 @@
 const express = require("express");
 const { createCdrRouter } = require("./routes/cdr");
 const { createHealthRouter } = require("./routes/health");
+const { createSqlRouter } = require("./routes/sql");
 
 function createRestServer(pool) {
   const app = express();
 
   app.use(express.json());
 
+  // CORS
+  const corsOrigin = process.env.CORS_ORIGIN || "*";
+  app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", corsOrigin);
+    res.header("Access-Control-Allow-Headers", "Content-Type");
+    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    if (req.method === "OPTIONS") return res.sendStatus(204);
+    next();
+  });
+
   // Mount routes
   app.use("/api/v1/cdr", createCdrRouter(pool));
+  app.use("/api/v1/cdr/sql", createSqlRouter(pool));
   app.use("/api/v1/health", createHealthRouter(pool));
 
   // 404 fallback for unknown API routes
