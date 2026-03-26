@@ -65,6 +65,9 @@ async function lookupDevices(clusterConfig, deviceNames) {
   const quoted = safeNames.map((n) => `'${n}'`).join(",");
   const sql = AXL_DEVICE_SQL.replace("%PLACEHOLDERS%", quoted);
   const rows = await service.executeSqlQuery(sql);
+  console.log(
+    `AXL debug: query returned type=${typeof rows}, isArray=${Array.isArray(rows)}, value=${JSON.stringify(rows).slice(0, 500)}`,
+  );
   const results = new Map();
   if (Array.isArray(rows)) {
     for (const row of rows) {
