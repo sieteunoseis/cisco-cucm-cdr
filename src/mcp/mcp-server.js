@@ -3,13 +3,12 @@ const {
   StreamableHTTPServerTransport,
 } = require("@modelcontextprotocol/sdk/server/streamableHttp.js");
 
-async function createMcpServer(app, pool) {
+function createServerInstance(pool) {
   const server = new McpServer({
     name: "cisco-cdr",
     version: "0.1.0",
   });
 
-  // Register all tools
   const tools = [
     require("./tools/cdr-search"),
     require("./tools/cdr-trace"),
@@ -19,7 +18,6 @@ async function createMcpServer(app, pool) {
   ];
 
   for (const tool of tools) {
-    // MCP SDK expects ZodRawShape (the .shape property), not z.object() wrapper
     const schema = tool.inputSchema.shape
       ? tool.inputSchema.shape
       : tool.inputSchema;
@@ -28,10 +26,14 @@ async function createMcpServer(app, pool) {
     });
   }
 
-  // Mount streamable HTTP transport on Express
-  // Stateless mode: each POST creates a fresh transport instance
+  return server;
+}
+
+async function createMcpServer(app, pool) {
+  // Stateless mode: each POST creates a fresh server + transport
   app.post("/mcp", async (req, res) => {
     try {
+      const server = createServerInstance(pool);
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
       });
@@ -52,8 +54,6 @@ async function createMcpServer(app, pool) {
   app.delete("/mcp", (req, res) => {
     res.writeHead(405).end("Method Not Allowed");
   });
-
-  return server;
 }
 
 module.exports = { createMcpServer };
